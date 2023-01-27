@@ -48,7 +48,8 @@ class MyWebServer(socketserver.BaseRequestHandler):
     
     def handle(self):
         #default content type
-        content_type = "Content-Type: application/octet-stream"
+        loc = ""
+        content_type = "Content-Type: text/html"
 
         self.data = self.request.recv(1024).strip().decode('utf-8')
         print ("Got a request of: %s\n" % self.data)
@@ -61,16 +62,20 @@ class MyWebServer(socketserver.BaseRequestHandler):
         if 'GET' != split_data[0]:
             self.code = str_405
         else:
-            if split_data[1][0:3] != "/www":
+            print(split_data[1])
+            print(split_data[1][0:5])
+            if split_data[1][0:5] != "/www/":
                 path = 'www' + split_data[1]
             else:
-                path = split_data[1]
+                path = split_data[1][1:]
 
             if Path(path).is_dir():
+                print(path[-1])
                 if path[-1] != '/':
                     self.code = str_301
                     loc = path + '/'
-                path = path + 'index.html'
+                else:
+                    path = path + 'index.html'
 
             if Path(path).is_file():
                 f = open(path, "r")
@@ -84,14 +89,17 @@ class MyWebServer(socketserver.BaseRequestHandler):
             split_path = path.split('.')
             extension = '.' + split_path[-1]
             content_type = "Content-Type: " + mime_types[extension] 
+        
+        print(f"{path}, {loc}")
+        print(content_type)
 
         if self.code == str_200:
             self.request.sendall(bytearray(f"HTTP/1.1 {self.code}\r\n\r\n" + html, 'utf-8'))
         
         elif self.code == str_301:
             self.request.sendall(bytearray(f"HTTP/1.1 {self.code}\r\n\
-                Location: {base_url + loc}\r\n\
-                \r\n\
+                {content_type}\r\n\
+                Location: {base_url + loc}\r\n\r\n\
                 <html>\n\
                 <head><title>{self.code}</title></head>\n\
                 <body bgcolor=\"white\">\n\
@@ -100,8 +108,7 @@ class MyWebServer(socketserver.BaseRequestHandler):
                 </html>", 'utf-8'))         
         else:
             self.request.sendall(bytearray(f"HTTP/1.1 {self.code}\r\n\
-                {content_type}\r\n\
-                \r\n\
+                {content_type}\r\n\r\n\
                 <html>\n\
                 <head><title>{self.code}</title></head>\n\
                 <body bgcolor=\"white\">\n\
