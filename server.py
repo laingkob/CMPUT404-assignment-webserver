@@ -1,7 +1,8 @@
 #  coding: utf-8 
 import socketserver
+from pathlib import Path
 
-# Copyright 2013 Abram Hindle, Eddie Antonio Santos
+# Copyright 2013 Abram Hindle, Eddie Antonio Santos, Courtenay Laing-Kobe
 # 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,13 +27,72 @@ import socketserver
 
 # try: curl -v -X GET http://127.0.0.1:8080/
 
+str_200 = "200 OK"
+str_301 = "301 Moved Permanently"
+str_405 = "405 Method Not Allowed"
+str_404 = "404 Path Not Found"
+base = "http://127.0.0.1:8080/"
+
+#TODO:
+# -MIME for css & html
+# -Fix 301 redirect
+# -Test on Lab Machine, check curl for 405 testing
+# -Make sure script runs ^
+# -More basic html error page
+# -Should add dates and content lengths to headers
+# -Check licensing
+# -Screenshots in reqs (& test in Firefox)
 
 class MyWebServer(socketserver.BaseRequestHandler):
     
     def handle(self):
-        self.data = self.request.recv(1024).strip()
+        self.data = self.request.recv(1024).strip().decode('utf-8')
         print ("Got a request of: %s\n" % self.data)
-        self.request.sendall(bytearray("OK",'utf-8'))
+        if self.data:
+            split_data = self.data.split()
+        else:
+            return
+        self.code = str_200
+
+        if 'GET' != split_data[0]:
+            self.code = str_405
+        else:
+            path = 'www' + split_data[1]
+            if Path(path).is_dir():
+                if path[-1] != '/':
+                    self.code = str_301
+                    loc = path + '/'
+                path = path + 'index.html'
+            if Path(path).is_file():
+                f = open(path, "r")
+                html = f.read()
+                f.close()
+            elif self.code != str_301:
+                self.code = str_404
+
+        if self.code == str_200:
+            self.request.sendall(bytearray(f"HTTP/1.1 {self.code}\r\n\r\n" + html, 'utf-8'))
+        
+        elif self.code == str_301:
+            self.request.sendall(bytearray(f"HTTP/1.1 {self.code}\r\nLocation: {base + loc}\r\n\
+                Content-Type: text/html\r\n\
+                \r\n\
+                <html>\n\
+                <head><title>{self.code}</title></head>\n\
+                <body bgcolor=\"white\">\n\
+                <center><h1>{self.code}</h1></center>\n\
+                <hr><center>nginx/1.13.12</center>\n\
+                </body>\n\
+                </html>", 'utf-8'))         #CHANGE HTML TO MORE BASIC
+        else:
+            self.request.sendall(bytearray(f"HTTP/1.1 {self.code}\r\n\r\n\
+                <html>\n\
+                <head><title>{self.code}</title></head>\n\
+                <body bgcolor=\"white\">\n\
+                <center><h1>{self.code}</h1></center>\n\
+                <hr><center>nginx/1.13.12</center>\n\
+                </body>\n\
+                </html>", 'utf-8'))
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
