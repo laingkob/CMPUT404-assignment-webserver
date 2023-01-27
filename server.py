@@ -42,6 +42,8 @@ class MyWebServer(socketserver.BaseRequestHandler):
         path = " "
         code = str_200
         content_type = "Content-Type: text/html; charset=UTF-8"
+        #html mostly copied from Hindle & Campbell's slides located here:
+        #https://uofa-cmput404.github.io/cmput404-slides/04-HTTP.html#/20
         default_payload = "<html>\n\
                         <head><title>{http_code}</title></head>\n\
                         <body bgcolor=\"white\">\n\
