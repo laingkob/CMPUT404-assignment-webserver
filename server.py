@@ -34,87 +34,75 @@ str_405 = "405 Method Not Allowed"
 str_404 = "404 Path Not Found"
 base_url = "http://127.0.0.1:8080/"
 
-#TODO:
-# -MIME for css & html
-# -Fix 301 redirect
-# /Test on Lab Machine, check curl for 405 testing
-# /Make sure script runs ^
-# -More basic html error page
-# -Should add dates and content lengths to headers
-# -Check licensing
-# -Screenshots in reqs (& test in Firefox)
-
 class MyWebServer(socketserver.BaseRequestHandler):
     
     def handle(self):
-        #default content type
+        #defaults
         loc = ""
-        content_type = "Content-Type: text/html"
+        path = " "
+        code = str_200
+        content_type = "Content-Type: text/html; charset=UTF-8"
+        default_payload = "<html>\n\
+                        <head><title>{http_code}</title></head>\n\
+                        <body bgcolor=\"white\">\n\
+                        <center><h1>{http_code}</h1></center>\n\
+                        </body>\n\
+                        </html>"
 
+        #Check what data came in, convert to str for processing
         self.data = self.request.recv(1024).strip().decode('utf-8')
         print ("Got a request of: %s\n" % self.data)
+        #Prevent empty requests from causing issues
         if self.data:
             split_data = self.data.split()
         else:
             return
-        self.code = str_200
-
+        
+        #Only allow GET requests
         if 'GET' != split_data[0]:
-            self.code = str_405
+            code = str_405
         else:
-            print(split_data[1])
-            print(split_data[1][0:5])
-            if split_data[1][0:5] != "/www/":
+            #Prevent relative paths
+            if split_data[1][0:4] == "/../":
+                code = str_404
+            #Allow www folder in url only
+            elif split_data[1][0:5] != "/www/":
                 path = 'www' + split_data[1]
             else:
                 path = split_data[1][1:]
-
+            #Handle directories and missing end/
             if Path(path).is_dir():
-                print(path[-1])
                 if path[-1] != '/':
-                    self.code = str_301
+                    code = str_301
                     loc = path + '/'
                 else:
                     path = path + 'index.html'
-
+            #Handle files
             if Path(path).is_file():
                 f = open(path, "r")
-                html = f.read()
+                payload = f.read()
                 f.close()
-            elif self.code != str_301:
-                self.code = str_404
-
-        mime_types = mimetypes.read_mime_types(path)
-        if mime_types != None:
-            split_path = path.split('.')
-            extension = '.' + split_path[-1]
-            content_type = "Content-Type: " + mime_types[extension] 
-        
-        print(f"{path}, {loc}")
-        print(content_type)
-
-        if self.code == str_200:
-            self.request.sendall(bytearray(f"HTTP/1.1 {self.code}\r\n\r\n" + html, 'utf-8'))
-        
-        elif self.code == str_301:
-            self.request.sendall(bytearray(f"HTTP/1.1 {self.code}\r\n\
-                {content_type}\r\n\
-                Location: {base_url + loc}\r\n\r\n\
-                <html>\n\
-                <head><title>{self.code}</title></head>\n\
-                <body bgcolor=\"white\">\n\
-                <center><h1>{self.code}</h1></center>\n\
-                </body>\n\
-                </html>", 'utf-8'))         
+                #Specify mimetypes
+                mime_types = mimetypes.read_mime_types(path)
+                if mime_types != None:
+                    split_path = path.split('.')
+                    extension = '.' + split_path[-1]
+                    content_type = "Content-Type: " + mime_types[extension] + "; charset=UTF-8" 
+            #Make sure not 301 before calling 404
+            elif code != str_301:
+                code = str_404
+        #Send 200 code and display file contents
+        if code == str_200:
+            self.request.sendall(bytearray(f"HTTP/1.1 {code}\r\n{content_type}\r\n\r\n" + payload, 'utf-8'))
+        #Send 301 code with new location info
+        elif code == str_301:
+            self.request.sendall(bytearray(f"HTTP/1.1 {code}\r\n\
+                Location: {base_url + loc}\r\n\
+                {content_type}\r\n\r\n" + default_payload.format(http_code = code), 'utf-8'))
+        #Send generic html page with code information         
         else:
-            self.request.sendall(bytearray(f"HTTP/1.1 {self.code}\r\n\
-                {content_type}\r\n\r\n\
-                <html>\n\
-                <head><title>{self.code}</title></head>\n\
-                <body bgcolor=\"white\">\n\
-                <center><h1>{self.code}</h1></center>\n\
-                </body>\n\
-                </html>", 'utf-8'))
+            self.request.sendall(bytearray(f"HTTP/1.1 {code}\r\n\
+                {content_type}\r\n\r\n" + default_payload.format(http_code = code), 'utf-8'))
 
 if __name__ == "__main__":
     HOST, PORT = "localhost", 8080
